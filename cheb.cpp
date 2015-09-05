@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <vector>
 #include <cmath>
 #include <mgl2/mgl.h>
 
@@ -15,7 +16,6 @@ const double pi = std::acos(-1);
 class ZeroPoly
 {
 public:
-	const std::size_t order = 0;
 	ZeroPoly(const std::size_t param_order)
 	:	order(param_order)
 	{
@@ -29,22 +29,48 @@ public:
 		}
 		return y;
 	}
+private:
+	std::size_t order = 0;
 };
 
 // Class representing Chebyshev polynomials on Domain -1 to 1
 class Cheb
 {
 public:
-	const std::size_t order = 0;
 	Cheb(const std::size_t param_order)
 	:	order(param_order)
 	,	mag(param_order > 1 ? std::pow(2.0, param_order - 1) : 1.0)
 	,	zeros(new double[param_order])
 	{
-		for (std::size_t i = 1; i <= order; ++i)
+		for (std::size_t i = 0; i < order; ++i)
 		{
-			zeros[i-1] = std::cos(pi*(2*i-1)/(double)(2*order));
+			zeros[i] = std::cos(pi*(2*i+1)/(double)(2*order));
 		}
+	}
+	Cheb(const Cheb& cheb)
+	:	order(cheb.order)
+	,	mag(cheb.mag)
+	,	zeros(new double[cheb.order])
+	{
+		for (std::size_t i = 0; i < order; ++i)
+		{
+			zeros[i] = cheb.zeros[i];
+		}
+	}
+	Cheb& operator= (const Cheb& cheb)
+	{
+		order = cheb.order;
+		mag = cheb.mag;
+
+		double * tmp = new double[order];
+		for (std::size_t i = 0; i < order; ++i)
+		{
+			tmp[i] = cheb.zeros[i];
+		}
+		delete zeros;
+		zeros = tmp;
+
+		return *this;
 	}
 	double operator()(const double x) const
 	{
@@ -60,8 +86,9 @@ public:
 		delete zeros;
 	}
 private:
-	const double mag = 1.0;
-	double * const zeros = NULL;
+	std::size_t order = 0;
+	double mag = 1.0;
+	double * zeros = NULL;
 };
 
 inline std::size_t index(std::size_t i, std::size_t j, std::size_t n)
@@ -190,14 +217,12 @@ template <class P>
 class Poly
 {
 public:
-	const std::size_t order = 0;
 	// takes order + 1 (x,y) pairs
 	Poly(const std::size_t param_order, const double * const x, const double * const y)
 	:	order(param_order)
 	,	center(x[0])
 	,	halfwidthinv(1.0)
 	,	coefficients(new double[param_order + 1])
-	,	polys(new P*[param_order + 1])
 	{
 
 		double minx = x[0], maxx = x[0];
@@ -212,40 +237,66 @@ public:
 
 		setPolyCoef(x, y);
 	}
+	Poly(const Poly& poly)
+	:	order(poly.order)
+	,	center(poly.center)
+	,	halfwidthinv(poly.halfwidthinv)
+	,	coefficients(new double[poly.order + 1])
+	{
+		for (std::size_t i = 0; i < order + 1; ++i)
+		{
+			coefficients[i] = poly.coefficients[i];
+		}
+	}
+	Poly& operator= (const Poly& poly)
+	{
+		order = poly.order;
+		center = poly.center;
+		halfwidthinv = poly.halfwidthinv;
+
+		double * const tmp = new double[order + 1];
+		for (std::size_t i = 0; i < order + 1; ++i)
+		{
+			tmp[i] = poly.coefficients[i];
+		}
+		delete coefficients;
+		coefficients = tmp;
+
+		return *this;
+	}
 	double operator()(double x) const
 	{
 		double y = 0.0;
 		x = (x - center) * halfwidthinv;
 		for (std::size_t i = 0; i < order + 1; ++i)
 		{
-			y += coefficients[i] * polys[i][0](x);
+			y += coefficients[i] * polys[i](x);
 		}
 		return y;
 	}
 	~Poly()
 	{
 		delete coefficients;
-
-		for (std::size_t i = 0; i < order + 1; ++i)
-		{
-			delete polys[i];
-		}
-
-		delete polys;
 	}
 private:
+	static std::vector<P> polys;
+	std::size_t order = 0;
 	double center;
 	double halfwidthinv;
-	double * const coefficients = NULL;
-	P ** const polys = NULL;
+	double * coefficients = NULL;
 
 	void setPolyCoef(const double * const x, const double * const y) 
 	{
-		// make Chebychev polynomials and copy 
+		// make polynomials if necessary
+		for (std::size_t i = polys.size(); i < order + 1; ++i)
+		{
+			// build in place at back
+			polys.emplace_back(i);
+		}
+		// copy y values
 		for (std::size_t i = 0; i < order + 1; ++i)
 		{
 			coefficients[i] = y[i];
-			polys[i] = new P(i);
 		}
 
 		double * A = new double[(order + 1) * (order + 1)];
@@ -257,7 +308,7 @@ private:
 
 			for (std::size_t j = 0; j < order + 1; ++j)
 			{
-				A[iind] = polys[j][0](xx);
+				A[iind] = polys[j](xx);
 				// std::cout << xx << ", " << A[iind] << "\n";
 				++iind;
 			}
@@ -268,6 +319,8 @@ private:
 		delete A; A = NULL;
 	}
 };
+template<class P>
+std::vector<P> Poly<P>::polys = std::vector<P>();
 
 template <class P, PointChooser pct>
 void mgls_prepare1d(mglData *x, mglData *y, double (*f) (double),
