@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <memory>
 #include <mgl2/mgl.h>
 
 typedef enum {
@@ -67,7 +68,7 @@ public:
 		{
 			tmp[i] = cheb.zeros[i];
 		}
-		delete zeros;
+		delete[] zeros;
 		zeros = tmp;
 
 		return *this;
@@ -83,7 +84,7 @@ public:
 	}
 	~Cheb()
 	{
-		delete zeros;
+		delete[] zeros;
 	}
 private:
 	std::size_t order = 0;
@@ -259,7 +260,7 @@ public:
 		{
 			tmp[i] = poly.coefficients[i];
 		}
-		delete coefficients;
+		delete[] coefficients;
 		coefficients = tmp;
 
 		return *this;
@@ -276,7 +277,7 @@ public:
 	}
 	~Poly()
 	{
-		delete coefficients;
+		delete[] coefficients;
 	}
 private:
 	static std::vector<P> polys;
@@ -316,7 +317,7 @@ private:
 
 		gaussianElim(A, coefficients, order + 1);
 
-		delete A; A = NULL;
+		delete[] A; A = NULL;
 	}
 };
 template<class P>
@@ -416,9 +417,9 @@ double f(double x)
 
 int main (int argc, char ** argv) {
 
-	mglGraph * gr = new mglGraph(0, 1000, 1000);
+	mglGraph gr(0, 1000, 1000);
 
-	const std::size_t n = 1001;
+	const std::size_t n = 10001;
 
 	const std::size_t maxorder = 45;
 
@@ -433,17 +434,17 @@ int main (int argc, char ** argv) {
 
 	mglData x;
 	mglData y;
-	mgls_prepare1d<Cheb, PointChooser::circle_even>
+
+	mgls_prepare1d<Cheb, PointChooser::circle_cheb>
 		(&x, &y, f, n, maxorder, viewlbound, viewrbound, interplbound, interprbound);
-	gr->SetRanges(viewlbound, viewrbound, viewlowbound, viewuprbound);
-	gr->SetOrigin((viewlbound + viewrbound) / 2.0 , 0, 0);
-	gr->Title("Plot cheb");
-	gr->Box();
-	gr->Plot(x, y);
 
-    gr->WriteFrame("sample.png");
+	gr.SetRanges(viewlbound, viewrbound, viewlowbound, viewuprbound);
+	gr.SetOrigin((viewlbound + viewrbound) / 2.0 , 0, 0);
+	gr.Title("Plot cheb");
+	gr.Box();
+	gr.Plot(x, y);
 
-    delete gr;
+    gr.WriteFrame("sample.png");
 
 	return 0;
 }
